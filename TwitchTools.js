@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name          Twitch Ad Muter & Enhancer
+// @name          Twitch Tools
 // @namespace     https://astroolean.github.io/
 // @description   Automatically mutes Twitch ads, bypass ads, and auto-claim channel points.
 // @include       https://www.twitch.tv/*
@@ -17,7 +17,7 @@
 
     // --- Configuration & Constants ---
     const DEBUG_MODE = true; // Set to true for extensive console logging
-    const LOG_PREFIX = 'Twitch_AdBlocker_Ultimate:';
+    const LOG_PREFIX = 'Twitch Tools:';
 
     const log = (level, ...args) => {
         if (!DEBUG_MODE) return;
