@@ -60,12 +60,6 @@ Once installed, the script runs automatically in the background when you visit `
 
 ---
 
-## 📸 Screenshots
-
-
-
----
-
 ## 🙏 Acknowledgements
 
 * Inspired by various Twitch ad-muting solutions.
