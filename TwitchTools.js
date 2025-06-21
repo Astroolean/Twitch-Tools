@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          Twitch Ad Muter & Enhancer
 // @namespace     https://astroolean.github.io/
-// @description   Automatically mutes Twitch ads and provides options to hide the player, bypass ads, fullscreen the stream, and auto-claim bonus points.
+// @description   Automatically mutes Twitch ads, bypass ads, and auto-claim channel points.
 // @include       https://www.twitch.tv/*
 // @include       https://twitch.tv/*
 // @version       1.0.0
