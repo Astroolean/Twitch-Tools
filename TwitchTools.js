@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name          Twitch Tools
 // @namespace     https://astroolean.github.io/
-// @description   Automatically mutes Twitch ads, bypass ads, and auto-claim channel points.
+// @description   Automatically mutes Twitch ads, bypass ads, auto-claim channel points, auto-select highest quality, auto-close "Continue Watching?" dialog, and applies dark mode.
 // @include       https://www.twitch.tv/*
 // @include       https://twitch.tv/*
-// @version       1.0.0
+// @version       1.0.1 // Twitch made an update... changed a few things.
 // @license       MIT
 // @author        Astroolean / Google Gemini
 // @grant         none
@@ -16,39 +16,23 @@
     'use strict';
 
     // --- Configuration & Constants ---
-    const DEBUG_MODE = true; // Set to true for extensive console logging
-    const LOG_PREFIX = 'Twitch Tools:';
-
-    const log = (level, ...args) => {
-        if (!DEBUG_MODE) return;
-        const msg = `[${LOG_PREFIX}${level}]`;
-        if (console[level]) {
-            console[level](msg, ...args);
-        } else {
-            console.log(msg, ...args);
-        }
-    };
-
     const _tmuteVars = {
-        timerCheck: 500, // EDITABLE - Checking rate of ad in progress (in milliseconds; recommended value: 250 - 1000; default: 500)
+        timerCheck: 500, // Checking rate of ad in progress (in milliseconds; recommended value: 250 - 1000; default: 500)
         adInProgress: false, // Track if an ad is in progress or not (directly linked to player mute state)
         adsDisplayed: 0, // Number of ads displayed
-        disableDisplay: false, // EDITABLE - Disable the player display during an ad (true = yes, false = no (default))
-        anticipatePreroll: false, // EDITABLE - Temporarily mute and/or hide the player when loading a new stream to anticipate a pre-roll ad (true = yes, false = no (default))
-        anticipateTimer: 2000, // EDITABLE - Time where the player is muted and/or hidden when loading a new stream to anticipate a pre-roll ad (in milliseconds; default: 2000)
+        disableDisplay: false, // Disable the player display during an ad (true = yes, false = no (default))
+        anticipatePreroll: false, // Temporarily mute and/or hide the player when loading a new stream to anticipate a pre-roll ad (true = yes, false = no (default))
+        anticipateTimer: 2000, // Time where the player is muted and/or hidden when loading a new stream to anticipate a pre-roll ad (in milliseconds; default: 2000)
         anticipateInProgress: false, // Used to check if we're currently anticipating a pre-roll ad
         anticipatePrematureEnd: false, // Used to check if we prematurely ended a pre-roll ad anticipation
         alreadyMuted: false, // Used to check if the player is muted at the start of an ad
         adElapsedTime: undefined, // Used to check if Twitch forgot to remove the ad notice
-        adUnlockAt: 270, // EDITABLE - Unlock the player if this amount of seconds elapsed during an ad (in seconds; default: 270)
-        adMinTime: 2, // EDITABLE - Minimum amount of seconds the player will be muted/hidden since an ad started (in seconds; default: 2)
+        adUnlockAt: 270, // Unlock the player if this amount of seconds elapsed during an ad (in seconds; default: 270)
+        adMinTime: 2, // Minimum amount of seconds the player will be muted/hidden since an ad started (in seconds; default: 2)
         playerIdAds: 0, // Player ID where ads may be displayed (default 0, varying on squads page)
-        displayingOptions: false, // Either ads options extended menu is currently displayed or not
         highwindPlayer: undefined, // If you've the Highwind Player or not
         currentPage: undefined, // Current page to know if we need to reset ad detection on init, or add the ads options back
         currentChannel: undefined, // Current channel to avoid pre-roll ad anticipation to trigger if we visit channel pages
-        optionsInitialized: false, // Used to know if the ads options have been initialized on the current page
-        optionsInitializing: false, // Used to track the ads options initialization
         volumePremute: undefined, // Main player volume, used to set the volume of the stream top right during an ad
         restorePiP: false, // Used to avoid displaying an ad if a stream is in Picture in Picture mode (require "disableDisplay" to true)
         autoCheck: undefined, // Holder for the setInterval for checkAd
@@ -83,10 +67,8 @@
 
             _tmuteVars.highwindPlayer = Boolean(isHwPlayer);
             currentSelector = (_tmuteVars.highwindPlayer === true) ? _tmuteSelectors.hw : null;
-            log('info', `You're currently using the ${(_tmuteVars.highwindPlayer === true) ? 'Highwind' : 'new unknown'} player.`);
             if (currentSelector === null) {
                 clearInterval(_tmuteVars.autoCheck);
-                log('error', 'Script stopped. Failed to find the player, Twitch changed something. Feel free to contact the author of the script.');
                 return;
             }
         } else {
@@ -94,20 +76,21 @@
             if (isViewing === false) return;
         }
 
-        if (_tmuteVars.optionsInitialized === false || window.location.pathname !== _tmuteVars.currentPage) {
-            initAdsOptions();
-            if (currentSelector.adNotice === undefined) return;
+        // Initialize adNotice if not set
+        if (currentSelector.adNotice === undefined) {
+            initializeAdNotice();
+            if (currentSelector.adNotice === undefined) return; // If still not found, wait for next check
         }
 
         const advert = document.getElementsByClassName(currentSelector.adNotice)[_tmuteVars.playerIdAds];
+        if (!advert) return; // Ensure advert element exists
 
         if (_tmuteVars.adElapsedTime !== undefined) {
             _tmuteVars.adElapsedTime += _tmuteVars.timerCheck / 1000;
             if (_tmuteVars.adElapsedTime >= _tmuteVars.adUnlockAt && advert.childNodes[1] !== undefined) {
                 for (let i = 0; i < advert.childElementCount; i++) {
-                    if (!advert.childNodes[i].classList.contains(currentSelector.adNotice)) advert.removeChild(advert.childNodes[i]);
+                    if (advert.childNodes[i] && !advert.childNodes[i].classList.contains(currentSelector.adNotice)) advert.removeChild(advert.childNodes[i]);
                 }
-                log('info', 'Unlocking Twitch player as Twitch forgot to remove the ad notice after the ad(s).');
             }
         }
 
@@ -117,7 +100,6 @@
                     clearTimeout(_tmuteVars.anticipateInProgress);
                     _tmuteVars.anticipateInProgress = false;
                     _tmuteVars.anticipatePrematureEnd = true;
-                    log('info', 'Pre-roll ad anticipation ended prematurely, ad detected.');
                 } else {
                     isAlreadyMuted();
                 }
@@ -126,6 +108,18 @@
             mutePlayer();
         }
     }
+
+    /**
+     * Finds the ad notice class and sets up the autoCheck interval.
+     */
+    function initializeAdNotice() {
+        if (document.querySelector(currentSelector.adNoticeFinder) !== null) {
+            currentSelector.adNotice = document.querySelector(currentSelector.adNoticeFinder).parentNode.className;
+            clearInterval(_tmuteVars.autoCheck); // Clear any old interval
+            _tmuteVars.autoCheck = setInterval(checkAd, _tmuteVars.timerCheck);
+        }
+    }
+
 
     /**
      * Main function to (un)mute and (un)hide the player called by checkAd().
@@ -142,17 +136,15 @@
             if (_tmuteVars.adInProgress === true) {
                 _tmuteVars.adsDisplayed++;
                 _tmuteVars.adElapsedTime = 1;
-                log('info', `Ad #${_tmuteVars.adsDisplayed} detected. Player ${(_tmuteVars.alreadyMuted === true ? 'already ' : '')}muted.`);
                 actionHidePlayer(); // Only hides if _tmuteVars.disableDisplay is true
                 unmuteAdPlayer();
             } else {
-                log('info', `Ad #${_tmuteVars.adsDisplayed} finished (lasted ${(_tmuteVars.adElapsedTime ? _tmuteVars.adElapsedTime.toFixed(1) : 'N/A')}s).${(_tmuteVars.alreadyMuted === true ? '' : ' Player unmuted.')}`);
                 _tmuteVars.adElapsedTime = undefined;
                 actionHidePlayer(false); // Always attempts to show if _tmuteVars.disableDisplay is false
                 resetMuteOnStreamDuringAd();
             }
         } else {
-            log('warn', 'No volume button found (class changed ?).');
+            // No volume button found
         }
     }
 
@@ -161,9 +153,8 @@
      */
     function resetMuteOnStreamDuringAd() {
         const playerDuringAd = document.getElementsByClassName(currentSelector.playerDuringAd)[0];
-        if (playerDuringAd !== undefined) {
+        if (playerDuringAd !== undefined && playerDuringAd.childNodes[0]) {
             playerDuringAd.childNodes[0].muted = true;
-            log('debug', 'Small ad stream muted to prevent double audio.');
         }
     }
 
@@ -172,12 +163,11 @@
      */
     function unmuteAdPlayer(firstCall = true) {
         const playerDuringAd = document.getElementsByClassName(currentSelector.playerDuringAd)[0];
-        if (playerDuringAd !== undefined) {
+        if (playerDuringAd !== undefined && playerDuringAd.childNodes[0]) {
             playerDuringAd.childNodes[0].setAttribute('controls', true);
             if (_tmuteVars.alreadyMuted === false) {
                 playerDuringAd.childNodes[0].volume = _tmuteVars.volumePremute;
                 playerDuringAd.childNodes[0].muted = false;
-                log('info', 'Small ad stream unmuted (player was not muted initially).');
             }
             // Switch the eventual previous PiP to the smaller stream available during an ad
             if (_tmuteVars.restorePiP === true) playerDuringAd.childNodes[0].requestPictureInPicture();
@@ -185,7 +175,6 @@
             const playerHidden = document.getElementsByClassName(currentSelector.playerHidingDuringAd)[0];
             if (playerHidden !== undefined) {
                 playerHidden.classList.remove(currentSelector.playerHidingDuringAd);
-                log('info', 'Stream top right hidden detected during the ad. Unhidden.');
             }
         } else if (firstCall === true) { // Delaying a bit just in case it didn't load in DOM yet
             setTimeout(() => {
@@ -206,13 +195,11 @@
         actionHidePlayer(initCall); // Will only hide if _tmuteVars.disableDisplay is true
 
         if (initCall === true) {
-            log('info', `Pre-roll ad anticipation set for ${ _tmuteVars.anticipateTimer } ms. Player ${(_tmuteVars.alreadyMuted === true ? 'already ' : '')}muted.`);
             _tmuteVars.anticipateInProgress = setTimeout(() => {
                 anticipatePreroll(false);
             }, _tmuteVars.anticipateTimer);
         } else {
             _tmuteVars.anticipateInProgress = false;
-            log('info', 'Pre-roll ad anticipation ended.');
         }
     }
 
@@ -229,7 +216,7 @@
             if (_tmuteVars.alreadyMuted === false) muteBtn.click();
             if (anticipatingCall === false) _tmuteVars.adInProgress = !(_tmuteVars.adInProgress);
         } else {
-            log('warn', 'Could not find video element or mute button for mute action.');
+            // Could not find video element or mute button for mute action.
         }
     }
 
@@ -242,17 +229,15 @@
             const videoEl = document.querySelectorAll(currentSelector.playerVideo)[_tmuteVars.playerIdAds];
             if (videoEl) {
                 videoEl.style.visibility = (hideIt === true) ? 'hidden' : 'visible';
-                log('debug', `Player visibility set to: ${videoEl.style.visibility} (controlled by disableDisplay option).`);
                 togglePiP();
             } else {
-                log('warn', 'Could not find video element for hide action in actionHidePlayer.');
+                // Could not find video element for hide action in actionHidePlayer.
             }
         } else {
             // If disableDisplay is false, ensure the player is visible, regardless of `hideIt`
             const videoEl = document.querySelectorAll(currentSelector.playerVideo)[_tmuteVars.playerIdAds];
             if (videoEl) {
                 videoEl.style.visibility = 'visible';
-                log('debug', 'Player visibility forced to: visible (disableDisplay is false).');
             }
         }
     }
@@ -265,63 +250,8 @@
             const volumeSlider = document.querySelector(currentSelector.volumeSlider);
             if (volumeSlider) {
                 _tmuteVars.alreadyMuted = Boolean(volumeSlider.valueAsNumber === 0);
-                log('debug', `Player initial mute state detected: ${_tmuteVars.alreadyMuted}`);
             } else {
-                log('warn', 'Could not find volume slider to detect initial mute state.');
                 _tmuteVars.alreadyMuted = false;
-            }
-        }
-    }
-
-    /**
-     * Detect if the ads options have been initialized, and starts init if required
-     */
-    function initAdsOptions(lastCalls = 0, failSafeCall = false) {
-        clearTimeout(_tmuteVars.optionsInitializing);
-        const optionsInitialized = (document.getElementById('_tmads_options') === null) ? false : true;
-        if (optionsInitialized === true) initUpdate();
-        if (optionsInitialized === false) {
-            _tmuteVars.optionsInitialized = false;
-            adsOptions('init');
-            _tmuteVars.optionsInitializing = setTimeout(() => {
-                initAdsOptions();
-            }, _tmuteVars.timerCheck);
-        } else if (lastCalls < 5) {
-            lastCalls++;
-            if (lastCalls === 5) failSafeCall = true;
-            _tmuteVars.optionsInitializing = setTimeout(() => {
-                initAdsOptions(lastCalls, failSafeCall);
-            }, Math.max(_tmuteVars.timerCheck, 500));
-        } else if (failSafeCall === true) {
-            _tmuteVars.optionsInitializing = setTimeout(() => {
-                initAdsOptions(lastCalls, failSafeCall);
-            }, 60000);
-        }
-    }
-
-    /**
-     * Update different values on init
-     */
-    function initUpdate() {
-        if (window.location.pathname !== _tmuteVars.currentPage) {
-            if (_tmuteVars.adInProgress === true) {
-                resetPlayerState();
-            } else if (_tmuteVars.adInProgress === false && (_tmuteVars.currentChannel === undefined || window.location.pathname.startsWith(`/${_tmuteVars.currentChannel}`) === false)) {
-                anticipatePreroll();
-            }
-        }
-
-        _tmuteVars.currentPage = window.location.pathname;
-        _tmuteVars.currentChannel = window.location.pathname.split('/')[1];
-
-        if (currentSelector.adNotice === undefined) {
-            clearInterval(_tmuteVars.autoCheck);
-            if (document.querySelector(currentSelector.adNoticeFinder) !== null) {
-                currentSelector.adNotice = document.querySelector(currentSelector.adNoticeFinder).parentNode.className;
-                log('info', `Ad notice class retrieved ("${currentSelector.adNotice}") and set.`);
-                _tmuteVars.autoCheck = setInterval(checkAd, _tmuteVars.timerCheck);
-            } else {
-                log('warn', 'Script stopped. Failed to find the ad notice class, Twitch changed something. Feel free to contact the author of the script.');
             }
         }
     }
@@ -346,7 +276,6 @@
     function resetPlayerState() {
         actionMuteClick();
         actionHidePlayer(false);
-        log('info', 'Stream switched during an ad. Reverted player state.');
     }
 
     /**
@@ -361,7 +290,6 @@
             const smallPlayerVideo = smallPlayerContainer.childNodes[0];
             // Check if it's actually displaying and not collapsed by Twitch itself
             if (!smallPlayerContainer.classList.contains(currentSelector.playerHidingDuringAd) && smallPlayerVideo.offsetParent !== null) {
-                log('debug', 'Targeting small ad player for fullscreen.');
                 return smallPlayerVideo;
             }
         }
@@ -369,11 +297,9 @@
         // Otherwise, target the main player
         const mainPlayerVideo = document.querySelectorAll(currentSelector.playerVideo)[_tmuteVars.playerIdAds];
         if (mainPlayerVideo) {
-            log('debug', 'Targeting main player for fullscreen.');
             return mainPlayerVideo;
         }
 
-        log('warn', 'No suitable video element found for fullscreen.');
         return null;
     }
 
@@ -385,15 +311,13 @@
         if (videoElement) {
             if (document.fullscreenElement) {
                 document.exitFullscreen();
-                log('info', 'Exiting fullscreen.');
             } else {
                 videoElement.requestFullscreen().catch(err => {
-                    log('error', `Error attempting fullscreen: ${err.message}`);
+                    // Error attempting fullscreen
                 });
-                log('info', 'Attempting fullscreen.');
             }
         } else {
-            log('warn', 'Cannot fullscreen: No active video element found.');
+            // Cannot fullscreen: No active video element found.
         }
     }
 
@@ -404,133 +328,19 @@
         const advert = document.getElementsByClassName(currentSelector.adNotice)[0];
 
         if (_tmuteVars.adInProgress === false && (!advert || advert.childElementCount <= 2)) {
-            log('info', 'No ad detected to bypass. Ad notice not displayed or already ended.');
             return;
         }
 
         // Force the ad timer to its end to trigger ad conclusion on next check
         _tmuteVars.adElapsedTime = _tmuteVars.adUnlockAt;
-        log('info', 'Bypass Ad requested. Forcing ad timer to end.');
 
         // If an ad is in progress, attempt to trigger mutePlayer to end it immediately
         if (_tmuteVars.adInProgress === true) {
-            log('info', 'Ad in progress, attempting immediate ad termination via mutePlayer.');
             mutePlayer(); // This should trigger the ad finished logic
         }
     }
 
-    /**
-     * Manage ads options and UI.
-     */
-    function adsOptions(changeType = 'show') {
-        switch (changeType) {
-            case 'init': {
-                initUpdate();
-
-                if (document.getElementsByClassName(currentSelector.viewersCount)[0] === undefined) break;
-
-                const optionsTemplate = document.createElement('div');
-                optionsTemplate.id = '_tmads_options-wrapper';
-                const buttonStyle = document.createElement('style');
-                buttonStyle.textContent = `
-                    #_tmads_options-wrapper {
-                        margin-right: 10px;
-                    }
-                    ._tmads_button {
-                        display: inline-flex;
-                        align-items: center;
-                        justify-content: center;
-                        padding: 0 10px; /* Adjusted padding */
-                        margin: 5px 2px; /* Adjusted margin */
-                        height: 32px; /* Adjusted height */
-                        min-width: 80px; /* Adjusted min-width */
-                        border-radius: 5px; /* Modern border-radius */
-                        background-color: #6441a5; /* Twitch purple */
-                        color: #ffffff;
-                        border: none;
-                        cursor: pointer;
-                        font-size: 0.95em;
-                        font-weight: 600;
-                        transition: background-color 0.2s ease, transform 0.1s ease;
-                    }
-                    ._tmads_button:hover {
-                        background-color: #772ce8; /* Lighter purple on hover */
-                        transform: translateY(-1px);
-                    }
-                    ._tmads_button:active {
-                        transform: translateY(0);
-                    }`;
-                document.head.appendChild(buttonStyle);
-
-                // Replaced old buttons with new ones
-                optionsTemplate.innerHTML = `
-                    <span id="_tmads_options" style="display: none;">
-                        <button type="button" id="_tmads_bypass" class="_tmads_button">Bypass Ad</button>
-                        <button type="button" id="_tmads_fullscreen" class="_tmads_button">Fullscreen Current Stream</button>
-                    </span>
-                    <button type="button" id="_tmads_showoptions" class="_tmads_button">Ads Options</button>`;
-
-                let attached = false;
-                const targetParent = document.getElementsByClassName(currentSelector.viewersCount)[0];
-                if (targetParent) {
-                    try {
-                        if (targetParent.parentNode && targetParent.parentNode.childNodes[1] &&
-                            targetParent.parentNode.childNodes[1].childNodes[1] &&
-                            targetParent.parentNode.childNodes[1].childNodes[1].childNodes[0] &&
-                            targetParent.parentNode.childNodes[1].childNodes[1].childNodes[0].childNodes[0] &&
-                            targetParent.parentNode.childNodes[1].childNodes[1].childNodes[0].childNodes[0].childNodes[1]) {
-                            targetParent.parentNode.childNodes[1].childNodes[1].childNodes[0].childNodes[0].childNodes[1].appendChild(optionsTemplate);
-                            attached = true;
-                        }
-                    } catch (e) {
-                        log('debug', `Attempt 1 to attach options failed: ${e.message}`);
-                    }
-
-                    if (!attached) {
-                        try {
-                            if (targetParent.childNodes[2] && targetParent.childNodes[2].childNodes[0]) {
-                                targetParent.childNodes[2].childNodes[0].appendChild(optionsTemplate);
-                                attached = true;
-                            }
-                        } catch (e2) {
-                            log('debug', `Attempt 2 to attach options failed: ${e2.message}`);
-                        }
-                    }
-
-                    if (!attached) {
-                        if (targetParent.parentNode && targetParent.parentNode.childNodes[1]) {
-                            optionsTemplate.style.paddingTop = '5px';
-                            targetParent.parentNode.childNodes[1].appendChild(optionsTemplate);
-                            attached = true;
-                        }
-                    }
-                }
-
-                if (attached) {
-                    document.getElementById('_tmads_showoptions').addEventListener('click', adsOptions.bind(null, 'show'), false);
-                    // New event listeners for the new buttons
-                    document.getElementById('_tmads_bypass').addEventListener('click', bypassAd, false);
-                    document.getElementById('_tmads_fullscreen').addEventListener('click', fullscreenCurrentPlayer, false);
-                    _tmuteVars.optionsInitialized = true;
-                    log('info', 'Ads options initialized and attached to DOM with new buttons.');
-                } else {
-                    log('warn', 'Failed to attach Ads options to the DOM. Viewers count element parent not found or structure changed.');
-                }
-                break;
-            }
-            case 'show':
-            default: {
-                _tmuteVars.displayingOptions = !(_tmuteVars.displayingOptions);
-                const optionsSpan = document.getElementById('_tmads_options');
-                if (optionsSpan) {
-                    optionsSpan.style.display = (_tmuteVars.displayingOptions === false) ? 'none' : 'inline-flex';
-                }
-                break;
-            }
-        }
-    }
-
-    // --- Bonus Claiming (Kept as non-disruptive) ---
+    // --- Bonus Claiming ---
 
     const autoClaimBonus = () => {
         const checkAndClaim = () => {
@@ -545,7 +355,6 @@
             for (const selector of bonusButtonSelectors) {
                 bonusButton = document.querySelector(selector);
                 if (bonusButton) {
-                    log('debug', `Found bonus button via selector: ${selector}`);
                     break;
                 }
             }
@@ -554,15 +363,13 @@
                 try {
                     bonusButton.click();
                     bonusButton.setAttribute('data-claimed-by-adblock', 'true');
-                    log('info', 'Successfully claimed bonus points!');
                 } catch (error) {
-                    log('error', 'Error clicking bonus button:', error);
                     bonusButton.setAttribute('data-claimed-by-adblock', 'error');
                 }
             } else if (bonusButton) {
-                log('debug', 'Bonus button found but already marked or claimed.');
+                // Bonus button found but already marked or claimed.
             } else {
-                log('debug', 'No bonus button found with current selectors.');
+                // No bonus button found with current selectors.
             }
         };
 
@@ -573,28 +380,174 @@
         });
 
         setInterval(checkAndClaim, 1000);
-        log('info', 'Auto-claim bonus functionality initiated.');
     };
+
+    // --- New Features ---
+
+    /**
+     * Auto-selects the highest available video quality.
+     */
+    function autoSetHighestQuality() {
+        const settingsButtonSelector = 'button[data-a-target="player-settings-button"]';
+        const qualityMenuItemSelector = 'div[data-a-target="player-settings-menu-item"]'; // Selector for the "Quality" menu item
+        const qualityOptionSelector = 'div[data-a-target="player-settings-menu-item"], div[role="menuitem"]'; // General selector for menu items within quality
+
+        const observeSettingsMenu = (mutations, observer) => {
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                    // Check if the settings menu popover has appeared
+                    const settingsMenu = document.querySelector('.quality-selector__menu, .video-player__popover-content');
+                    if (settingsMenu) {
+                        // Find the "Quality" menu item and click it
+                        const qualityOption = Array.from(settingsMenu.querySelectorAll(qualityMenuItemSelector))
+                            .find(item => item.textContent.includes('Quality'));
+
+                        if (qualityOption) {
+                            qualityOption.click();
+
+                            // After clicking Quality, wait for the quality options to appear
+                            const observeQualityOptions = new MutationObserver((mutationsList, innerObserver) => {
+                                for (const innerMutation of mutationsList) {
+                                    if (innerMutation.type === 'childList' && innerMutation.addedNodes.length > 0) {
+                                        const qualityOptionsContainer = document.querySelector('.quality-selector__menu'); // Or appropriate container
+                                        if (qualityOptionsContainer) {
+                                            // Filter for actual resolution options (e.g., "1080p", "720p")
+                                            const availableQualities = Array.from(qualityOptionsContainer.querySelectorAll(qualityOptionSelector))
+                                                .filter(item => item.textContent.match(/\d+p/) && !item.textContent.includes('Source') && !item.textContent.includes('Auto'))
+                                                .sort((a, b) => {
+                                                    // Extract resolution number for sorting
+                                                    const getResolution = (text) => parseInt(text.match(/(\d+)p/)?.[1] || 0);
+                                                    return getResolution(b.textContent) - getResolution(a.textContent);
+                                                });
+
+                                            if (availableQualities.length > 0) {
+                                                availableQualities[0].click(); // Click the highest quality option
+                                                innerObserver.disconnect(); // Stop observing quality options
+                                                observer.disconnect(); // Stop observing settings menu
+                                                // Re-attach observer for settings button to catch future menu openings
+                                                attachSettingsButtonObserver();
+                                                return;
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                            // Observe the body for the quality options menu to appear
+                            observeQualityOptions.observe(document.body, { childList: true, subtree: true });
+                            observer.disconnect(); // Disconnect the initial settings menu observer while waiting for quality options
+                            return;
+                        }
+                    }
+                }
+            }
+        };
+
+        const attachSettingsButtonObserver = () => {
+            const observer = new MutationObserver((mutationsList, observerInstance) => {
+                const settingsButton = document.querySelector(settingsButtonSelector);
+                if (settingsButton) {
+                    settingsButton.addEventListener('click', () => {
+                        // When settings button is clicked, observe for the menu to open
+                        const menuObserver = new MutationObserver(observeSettingsMenu);
+                        menuObserver.observe(document.body, { childList: true, subtree: true });
+                        // Disconnect this observer as soon as we click the settings button
+                        observerInstance.disconnect();
+                    }, { once: true }); // Use once: true to automatically remove the listener after it fires
+                }
+            });
+            // Observe the body for the settings button to appear (e.g., on page load or player changes)
+            observer.observe(document.body, { childList: true, subtree: true });
+        };
+
+        // Initial attachment of the settings button observer
+        attachSettingsButtonObserver();
+    }
+
+    /**
+     * Auto-closes the "Continue Watching?" dialog.
+     */
+    function autoCloseContinueWatchingDialog() {
+        const dialogSelector = 'div[data-test-selector="disconnect-overlay"]'; // Selector for the disconnect overlay
+        const continueButtonSelector = 'button[data-a-target="player-overlay-continue-watching-button"]'; // Selector for the "Continue Watching" button
+
+        const checkAndCloseDialog = () => {
+            const dialog = document.querySelector(dialogSelector);
+            if (dialog) {
+                const continueButton = dialog.querySelector(continueButtonSelector);
+                if (continueButton) {
+                    continueButton.click();
+                }
+            }
+        };
+
+        // Use a MutationObserver to react to DOM changes, which is generally more efficient for detecting dynamically added elements
+        const observer = new MutationObserver(checkAndCloseDialog);
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        // Also run once every few seconds as a fallback, in case the MutationObserver misses something or for elements that are not added via childList mutations
+        setInterval(checkAndCloseDialog, 3000);
+    }
+
+    /**
+     * Automatically applies dark mode to the Twitch site.
+     */
+    function autoApplyDarkMode() {
+        const htmlElement = document.documentElement;
+        // Check if dark mode is already active by looking for the class and data-attribute
+        if (!htmlElement.classList.contains('tw-root--dark')) {
+            htmlElement.classList.add('tw-root--dark');
+            htmlElement.setAttribute('data-a-theme', 'dark'); // Ensure data-a-theme is also set
+        }
+    }
+
 
     // --- Main Initialization Sequence ---
 
-    log('info', 'Initializing Twitch Ad Muter & Enhancer (v1.1700)...');
-
     window.addEventListener('DOMContentLoaded', () => {
-        log('info', 'DOMContentLoaded fired. Activating DOM manipulation.');
-
+        // Initialize player detection and current selector based on existing player on page load
         _tmuteVars.highwindPlayer = document.getElementsByClassName(_tmuteSelectors.hw.player).length > 0;
         currentSelector = (_tmuteVars.highwindPlayer === true) ? _tmuteSelectors.hw : null;
+
         if (!currentSelector) {
-            log('error', 'Could not identify player type at DOMContentLoaded. Some features may not work.');
+            // Player type could not be identified, some features may not work.
+            return;
         }
 
-        _tmuteVars.autoCheck = setInterval(checkAd, _tmuteVars.timerCheck);
+        // MutationObserver to detect URL changes and re-initialize ad detection and anticipation
+        const urlChangeObserver = new MutationObserver(() => {
+            // Check if the URL path has actually changed
+            if (window.location.pathname !== _tmuteVars.currentPage) {
+                // If an ad was in progress on the previous page, reset player state
+                if (_tmuteVars.adInProgress === true) {
+                    resetPlayerState();
+                }
+                // Update current page and channel for new navigation
+                _tmuteVars.currentPage = window.location.pathname;
+                _tmuteVars.currentChannel = window.location.pathname.split('/')[1];
 
+                // Re-initialize ad notice detection and interval for the new page/channel
+                initializeAdNotice();
+                // Anticipate a pre-roll ad on the newly loaded stream
+                anticipatePreroll();
+            }
+        });
+        // Observe the body for URL changes (indicated by title or other changes, then checking path)
+        urlChangeObserver.observe(document.body, { childList: true, subtree: true });
+
+        // Initial setup for current page/channel, ad detection, and pre-roll anticipation when the DOM is ready
+        _tmuteVars.currentPage = window.location.pathname;
+        _tmuteVars.currentChannel = window.location.pathname.split('/')[1];
+        initializeAdNotice(); // Set up initial ad notice detection and interval for ad muting
+        anticipatePreroll(); // Initial anticipation for pre-roll ads on first load
+
+        // Activate new and existing features
         autoClaimBonus();
-
-        initAdsOptions();
+        autoSetHighestQuality();
+        autoCloseContinueWatchingDialog();
+        autoApplyDarkMode(); // Activate the new dark mode feature
     });
 
-    log('info', 'Script initialized successfully. Waiting for DOMContentLoaded.');
 })();
