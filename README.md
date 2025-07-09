@@ -1,3 +1,25 @@
+## Ad-Free Twitch Viewing via Picture-in-Picture!
+
+The technique exploits the interaction between ad playback and the browser's native Picture-in-Picture (PiP) functionality, rendering it highly resistant to conventional patching methods unless Twitch opts to disable PiP entirely.
+
+**Here's the Magic Trick:**
+
+1.  Grab my script and get it set up with Tampermonkey.
+2.  The instant an ad pops up, **hit that pause button on the ad itself**.
+3.  Then, simply switch your current stream into **Picture-in-Picture mode**.
+4.  That's it! Enjoy seamless, ad-free streaming! This is truly a game-changer!
+
+
+![80a9bfd33dd2f5b86653ebe13f2a6381](https://github.com/user-attachments/assets/55979781-55a5-45f2-9f77-058dbb5e2525)
+
+
+
+
+
+
+
+
+
 # Twitch Ad Muter & Enhancer
 
 ---
