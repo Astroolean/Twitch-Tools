@@ -1,5 +1,7 @@
 ## Ad-Free Twitch Viewing via Picture-in-Picture!
 
+**Discovered by Astroolean**
+
 The technique exploits the interaction between ad playback and the browser's native Picture-in-Picture (PiP) functionality, rendering it highly resistant to conventional patching methods unless Twitch opts to disable PiP entirely.
 
 **Here's the Magic Trick:**
