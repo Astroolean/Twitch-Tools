@@ -12,7 +12,8 @@ The technique exploits the interaction between ad playback and the browser's nat
 4.  That's it! Enjoy seamless, ad-free streaming! This is truly a game-changer!
 
 
-![80a9bfd33dd2f5b86653ebe13f2a6381](https://github.com/user-attachments/assets/55979781-55a5-45f2-9f77-058dbb5e2525)
+![f3ecfaeb59d564379abae4123b96d708](https://github.com/user-attachments/assets/f76c6dc4-45a1-43c2-bb68-bc1c2e3161c9)
+
 
 
 
