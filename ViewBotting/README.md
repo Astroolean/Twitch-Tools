@@ -1,4 +1,4 @@
-# Twitch Viewer Bot - Premium Edition (Coming soon...)
+# Twitch Viewer Bot - Premium Edition
 <img width="1920" height="1043" alt="29454b11510e02bc41f582dcf45ec180" src="https://github.com/user-attachments/assets/9dce668a-75f2-49fc-804e-a7baa6feca36" />
 (right now the free proxies are detcted by twitch and get blocked however private proxies or even proxy chaining should fix that and also it uses your computers hardware so your limited to the amount of instances your computer can handle. The only way to properly do 1000+ at a time less or more whatever depends on your hardware. Purchasing a VPS is a good strategy if your going to be selling the views you can offer)
 
