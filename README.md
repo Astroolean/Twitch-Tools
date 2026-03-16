@@ -92,7 +92,9 @@ Once installed, the script runs automatically in the background when you visit `
 
 * Inspired by various Twitch ad-muting solutions.
 
-* Developed with assistance from Google Gemini.
+* Research and help from ChatGPT Pro/Google AI Ultra/Replit Pro.
+  
+* Both time and money was spent on this and it was released for free, your welcome.
 
 ---
 
