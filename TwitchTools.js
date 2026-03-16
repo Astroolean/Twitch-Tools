@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name          Twitch Tools
-// @namespace     https://astroolean.github.io/
+// @namespace     none
 // @description   Automatically mutes Twitch ads, bypass ads, auto-claim channel points, auto-select highest quality, auto-close "Continue Watching?" dialog, and applies dark mode.
 // @include       https://www.twitch.tv/*
 // @include       https://twitch.tv/*
 // @version       1.0.1 // Twitch made an update... changed a few things.
 // @license       MIT
-// @author        Astroolean / Google Gemini
+// @author        Astroolean
+// @research      ChatGPT Pro/Google AI Ultra/Replit Pro
 // @grant         none
 // @run-at        document-start
 // ==/UserScript==
