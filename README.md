@@ -1,3 +1,6 @@
+## OVER 2 YEARS AND STILL WORKING... if they could patch this they would have by now...
+## That "over 2 years" takes into account when this was unreleased...
+
 ## Ad-Free Twitch Viewing via Picture-in-Picture!
 
 **Discovered by Astroolean**
